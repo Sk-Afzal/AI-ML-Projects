@@ -1,0 +1,126 @@
+ Install necessary libraries (if needed)
+!pip install nltk
+
+# Import libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import nltk
+from nltk.corpus import stopwords
+import re
+
+# Download stopwords for text preprocessing
+nltk.download('stopwords')
+
+
+
+# Load the dataset (you can upload it to Google Colab and use pandas to read)
+from google.colab import files
+uploaded = files.upload()
+
+# Assume it's in CSV format
+df = pd.read_csv('spam.csv', encoding='latin-1')
+df.head() 
+
+
+# Dropping irrelevant columns
+df = df[['v1', 'v2']]  # 'v1' contains labels (spam/ham), 'v2' contains text
+df.columns = ['label', 'text']
+
+# Convert labels to binary values
+df['label'] = df['label'].map({'ham': 0, 'spam': 1})
+
+# Text cleaning function
+def clean_text(text):
+    text = re.sub(r'\W', ' ', text)  # Remove special characters
+    text = text.lower()  # Convert to lowercase
+    text = re.sub(r'\s+', ' ', text)  # Remove extra spaces
+    return text
+
+df['text'] = df['text'].apply(clean_text)
+
+# Display the cleaned dataset
+df.head()
+
+
+
+# Split dataset into features (X) and labels (y)
+X = df['text']
+y = df['label']
+
+# Use TF-IDF Vectorizer to convert text into numerical data
+vectorizer = TfidfVectorizer(max_features=3000, stop_words=stopwords.words('english'))
+X = vectorizer.fit_transform(X).toarray()
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+
+# Train a Naive Bayes classifier
+nb_model = MultinomialNB()
+nb_model.fit(X_train, y_train)
+
+# Make predictions on the test set
+y_pred = nb_model.predict(X_test)
+
+
+# Calculate accuracy
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Model Accuracy: {accuracy*100:.2f}%")
+
+# Confusion matrix and classification report
+conf_matrix = confusion_matrix(y_test, y_pred)
+print("Confusion Matrix:")
+print(conf_matrix)
+
+# Visualize confusion matrix
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues')
+plt.show()
+
+# Classification report
+print("Classification Report:")
+print(classification_report(y_test, y_pred))
+
+
+from sklearn.model_selection import GridSearchCV
+
+# Set up parameters for GridSearchCV
+param_grid = {
+    'alpha': [0.01, 0.1, 1, 10, 100]
+}
+
+grid_search = GridSearchCV(MultinomialNB(), param_grid, cv=5)
+grid_search.fit(X_train, y_train)
+
+# Print the best parameters
+print("Best parameters found by GridSearchCV:")
+print(grid_search.best_params_)
+
+
+import joblib
+
+# Save the model
+joblib.dump(nb_model, 'spam_detection_model.pkl')
+
+# Load the model (for inference later)
+model = joblib.load('spam_detection_model.pkl')
+
+
+# Example email classification
+def classify_email(email):
+    email = clean_text(email)
+    email_vec = vectorizer.transform([email]).toarray()
+    prediction = nb_model.predict(email_vec)
+    return 'Spam Email' if prediction == 1 else 'Ham Email'
+
+# Test
+test_email = "I hope you're doing well. Just a reminder that we have a meeting scheduled for tomorrow at 10 AM to discuss the upcoming project deadlines. Please make sure to review the project requirements before the meeting, and let me know if you have any questions."
+print(classify_email(test_email)) 
+
+
+
